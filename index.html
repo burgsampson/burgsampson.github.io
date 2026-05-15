@@ -21,6 +21,7 @@
             padding: 40px;
             border-radius: 10px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-width: 900px;
         }
         
         h1 {
@@ -51,6 +52,59 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
+
+        .game-section {
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 2px solid #ddd;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .game-card {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .game-card h3 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .game-card p {
+            color: #666;
+        }
+
+        .game-card a {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+            transition: background 0.3s ease;
+        }
+
+        .game-card a:hover {
+            background-color: #764ba2;
+        }
+
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -63,6 +117,22 @@
             <button onclick="window.location.href='2.html'">"[UNUSED MUSTARD]"</button>
             <button onclick="window.location.href='3.html'">"[UNUSED MUSTARD]"</button>
             <button onclick="window.location.href='4.html'">"[UNUSED MUSTARD]"</button>
+        </div>
+
+        <div class="game-section">
+            <h2>🎮 Games</h2>
+            <p>Play games directly here:</p>
+            
+            <div class="games-grid">
+                <div class="game-card">
+                    <h3>Minusb Web</h3>
+                    <p>An awesome game</p>
+                    <a href="#minusb-game">Play Now</a>
+                </div>
+            </div>
+
+            <h3 id="minusb-game" style="margin-top: 40px;">Minusb Web</h3>
+            <iframe src="https://storage.boolonx.com/minusweb/"></iframe>
         </div>
     </div>
 </body>
