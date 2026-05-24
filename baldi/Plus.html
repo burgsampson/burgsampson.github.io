@@ -115,6 +115,19 @@
           })
             .then((unityInstance) => {
               loadingBar.style.display = "none";
+
+              canvas.addEventListener("click", () => {
+                canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+                canvas.requestPointerLock();
+              });
+
+              document.addEventListener("pointerlockchange", () => {
+                if (document.pointerLockElement === canvas) {
+                  console.log("Pointer locked to canvas");
+                } else {
+                  console.log("Pointer lock exited");
+                }
+              });
             })
             .catch((message) => {
               alert(message);
