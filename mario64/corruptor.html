@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SM64 Corruptor</title>
+<style>
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:#0f1112;color:#fff;margin:0;padding:16px;box-sizing:border-box}
+  .card{background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;margin-bottom:12px}
+  label{display:block;font-size:13px;margin-bottom:6px;color:#ddd}
+  select,input[type=range]{width:100%}
+  button{width:100%;padding:10px;border-radius:8px;border:none;background:#ff6b35;color:#111;font-weight:700;margin-top:8px}
+  .row{display:flex;gap:8px}
+  .row > button{flex:1}
+  footer{font-size:12px;color:#aaa;margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+  <div class="card">
+    <label>Engine</label>
+    <select id="engine">
+      <option value="flip">Flip Heap Bytes (risky)</option>
+      <option value="scatter">Scatter Writes (random heap writes)</option>
+      <option value="xor-region">XOR Region (periodic XOR over a region)</option>
+      <option value="memory-zip">Memory Zip (copy/swizzle blocks)</option>
+      <option value="combo">Combo (repeating writes + periodic flips)</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <label>Intensity <span id="int-label">0.5</span></label>
+    <input id="intensity" type="range" min="0" max="1" step="0.01" value="0.5" />
+  </div>
+
+  <div class="card">
+    <label>Speed (glitch frequency)</label>
+    <input id="speed" type="range" min="10" max="400" step="10" value="120" />
+  </div>
+
+  <div class="card">
+    <label>Byte flips (when using flip engine)</label>
+    <input id="flips" type="range" min="1" max="2000" step="1" value="12" />
+  </div>
+
+  <div class="row">
+    <button id="start">Start</button>
+    <button id="stop" style="background:#555;color:#fff">Stop</button>
+  </div>
+
+  <div class="row">
+    <button id="one">One-shot</button>
+    <button id="flipnow" style="background:#d32f2f">Flip Now</button>
+  </div>
+
+  <footer>Use responsibly — flipping bytes can crash the game. Or freeze the page with the game</footer>
+
+  <script>
+    var engineEl = document.getElementById('engine');
+    var intensityEl = document.getElementById('intensity');
+    var speedEl = document.getElementById('speed');
+    var flipsEl = document.getElementById('flips');
+    var intLabel = document.getElementById('int-label');
+
+    intensityEl.addEventListener('input', function(){ intLabel.textContent = this.value; });
+
+    function post(cmd, payload){
+      try { window.opener.postMessage(Object.assign({cmd:cmd}, payload||{}), '*'); }
+      catch(e){ console.warn('no-opener',e); }
+    }
+
+    document.getElementById('start').addEventListener('click', function(){
+      var engine = engineEl.value;
+      var intensity = parseFloat(intensityEl.value);
+      var speed = parseInt(speedEl.value,10);
+      var flips = parseInt(flipsEl.value,10);
+
+      // clear any existing local timers first
+      if(this._timer){ clearInterval(this._timer); this._timer = null; }
+
+      // For 'flip' we repeatedly send flip requests from the corruptor window.
+      if(engine === 'flip'){
+        this._timer = setInterval(function(){ post('flip-bytes',{count:flips, intensity:intensity}); }, Math.max(120, 600 - speed));
+        // also notify host that flip-loop started (for UI feedback)
+        post('start-engine', { engine: 'flip', intensity:intensity, speed:speed, count:flips });
+      } else {
+        // send a start-engine message for engines handled by the host (scatter, xor-region, memory-zip, combo)
+        post('start-engine', {
+          engine: engine,
+          intensity: intensity,
+          speed: speed,
+          count: flips,
+          regionSize: 512,
+          blocks: 6,
+          blockSize: 256,
+          patternByte: 0xA5
+        });
+      }
+    });
+
+    document.getElementById('stop').addEventListener('click', function(){
+      post('stop-glitch',{});
+      if(document.getElementById('start')._timer) { clearInterval(document.getElementById('start')._timer); document.getElementById('start')._timer = null; }
+    });
+
+    document.getElementById('one').addEventListener('click', function(){
+      post('one-shot-glitch',{intensity:parseFloat(intensityEl.value)});
+    });
+
+    document.getElementById('flipnow').addEventListener('click', function(){
+      post('flip-bytes',{count:parseInt(flipsEl.value,10), intensity:parseFloat(intensityEl.value)});
+    });
+
+    // receive flip results
+    window.addEventListener('message', function(ev){
+      if(ev.data && ev.data.cmd === 'flip-result'){
+        var r = ev.data.result;
+        alert('Flip result: ' + (r.ok ? ('flipped '+r.flipped) : ('failed: '+(r.reason||'unknown'))));
+      }
+    }, false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3"
+      crossorigin="anonymous"
+    />
+    <title>Super Mario 64 on the Web!</title>
+    <style>
+      body,
+      html {
+        background-color: #000000;
+        image-rendering: pixelated;
+        margin: 0;
+        padding: 0;
+      }
+      #container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        cursor: pointer;
+        display: block;
+      }
+
+      /* Mobile touch controls revamp */
+      #touch-controls {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        user-select: none;
+      }
+      .tc-side {
+        position: absolute;
+        bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 10px;
+        box-sizing: border-box;
+        pointer-events: none;
+      }
+      .tc-left {
+        left: 10px;
+        align-items: flex-start;
+      }
+      .tc-right {
+        right: 10px;
+        align-items: flex-end;
+      }
+      
+      .tc-btn {
+        pointer-events: auto;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(4px);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        transition: transform 0.05s, background 0.1s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      .tc-btn:active {
+        transform: scale(0.92);
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      /* Shoulders */
+      .tc-shoulder-group {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+        pointer-events: none;
+      }
+      .tc-shoulder-btn {
+        width: 60px;
+        height: 36px;
+        border-radius: 12px;
+        font-size: 14px;
+        text-transform: uppercase;
+      }
+
+      /* Joystick */
+      .tc-stick-wrap {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        pointer-events: auto;
+        touch-action: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .tc-stick-wrap::after {
+        content: '';
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px dashed rgba(255,255,255,0.2);
+      }
+      .tc-stick-inner {
+        position: absolute;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.4), rgba(100,100,100,0.8));
+        box-shadow: 0 8px 16px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.3);
+        z-index: 2;
+        pointer-events: none;
+        transition: none; /* Controlled by JS */
+      }
+
+      /* Action Buttons */
+      .tc-action-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 60px);
+        gap: 15px;
+        margin-bottom: 20px;
+        pointer-events: none;
+      }
+      .tc-a, .tc-b {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        font-size: 20px;
+      }
+      .tc-a { background: radial-gradient(circle at 30% 30%, #4CAF50, #1b5e20); border-color: #81c784; }
+      .tc-b { background: radial-gradient(circle at 30% 30%, #F44336, #b71c1c); border-color: #ef9a9a; }
+
+      /* C-Buttons */
+      .tc-cpad {
+        display: grid;
+        grid-template-columns: repeat(3, 38px);
+        grid-template-rows: repeat(3, 38px);
+        gap: 4px;
+        pointer-events: none;
+      }
+      .tc-cpad .tc-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        font-size: 10px;
+        background: #FFC107;
+        color: #333;
+        border-color: #FFECB3;
+      }
+      .tc-c-up { grid-column: 2; grid-row: 1; }
+      .tc-c-down { grid-column: 2; grid-row: 3; }
+      .tc-c-left { grid-column: 1; grid-row: 2; }
+      .tc-c-right { grid-column: 3; grid-row: 2; }
+
+      /* Start Button */
+      .tc-start-wrap {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      .tc-start {
+        width: 80px;
+        height: 34px;
+        border-radius: 17px;
+        font-size: 12px;
+        background: rgba(200, 0, 0, 0.6);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container text-light" id="controls">
+      <figure>
+        <blockquote class="blockquote">
+          <h1 class="display-6"><strong>Keyboard Controls</strong></h1>
+        </blockquote>
+        <figcaption class="blockquote-footer">
+          Everything is saved automatically: this is not made by me, just for fun to test out websim.ai!
+        </figcaption>
+        <figcaption class="blockquote-footer">
+          Press page down to hide this.
+        </figcaption>
+        <figcaption class="blockquote-footer">
+          Press page up to see this, and the controls.
+        </figcaption>
+        <figcaption class="blockquote-footer">
+          Scroll down to start!
+        </figcaption>  
+        <figcaption class="blockquote-footer">
+          If controls dont work just refresh the page. And click on the game if u want to make it fullscreen!
+        </figcaption>          
+      </figure>
+      <table class="table table-sm text-light" id="keyboard">
+        <thead>
+          <th scope="col"></th>
+          <th scope="col">Keyboard</th>
+        </thead>
+        <tbody>
+          <tr>
+            <td></td>
+            <td>X = A (n64, to jump)</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>C = B (n64, to punch)</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>Q - L (what's this used for in the vanilla game?) </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>Space - Z (n64, crouch)</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>Enter - Start (n64, the start button) </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>WASD - Control Camera</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="position:fixed;top:12px;right:12px;z-index:9999;display:flex;gap:8px;align-items:center">
+      <button id="launch-corruptor" title="Open corruptor" style="padding:10px 12px;border-radius:8px;background:rgba(255,107,53,0.95);border:none;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.4);">Corruptor</button>
+      <button id="save-state" title="Save emulator state" style="padding:10px 12px;border-radius:8px;background:rgba(66,134,244,0.9);border:none;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.4);">Save State</button>
+      <button id="load-state" title="Load emulator state" style="padding:10px 12px;border-radius:8px;background:rgba(40,200,120,0.95);border:none;color:#041;box-shadow:0 6px 18px rgba(0,0,0,0.4);">Load State</button>
+    </div>
+    <div id="container">
+      <canvas class="emscripten" id="canvas"></canvas>
+      <div id="touch-controls">
+        <div class="tc-side tc-left">
+          <div class="tc-shoulder-group">
+            <button class="tc-btn tc-shoulder-btn" data-key="Space" data-code="Space" data-keycode="32">Z</button>
+            <button class="tc-btn tc-shoulder-btn" data-key="q" data-code="KeyQ" data-keycode="81">L</button>
+          </div>
+          <div class="tc-stick-wrap" id="joystick-boundary">
+            <div class="tc-stick-inner" id="joystick-knob"></div>
+          </div>
+        </div>
+
+        <div class="tc-side tc-right">
+          <div class="tc-shoulder-group">
+            <button class="tc-btn tc-shoulder-btn" data-key="e" data-code="KeyE" data-keycode="69">R</button>
+          </div>
+          <div class="tc-action-grid">
+            <button class="tc-btn tc-b" data-key="c" data-code="KeyC" data-keycode="67">B</button>
+            <button class="tc-btn tc-a" data-key="x" data-code="KeyX" data-keycode="88">A</button>
+          </div>
+          <div class="tc-cpad">
+            <button class="tc-btn tc-c-up" data-key="w" data-code="KeyW" data-keycode="87">C^</button>
+            <button class="tc-btn tc-c-down" data-key="s" data-code="KeyS" data-keycode="83">Cv</button>
+            <button class="tc-btn tc-c-left" data-key="a" data-code="KeyA" data-keycode="65">C&lt;</button>
+            <button class="tc-btn tc-c-right" data-key="d" data-code="KeyD" data-keycode="68">C&gt;</button>
+          </div>
+        </div>
+
+        <div class="tc-start-wrap">
+          <button class="tc-btn tc-start" data-key="Enter" data-code="Enter" data-keycode="13">START</button>
+        </div>
+      </div>
+    </div>
+    <script type="text/javascript">
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function () {
+          return function (text) {
+            if (arguments.length > 1)
+              text = Array.prototype.slice.call(arguments).join(" ");
+            console.log(text);
+          };
+        })(),
+        printErr: function (text) {
+          if (arguments.length > 1)
+            text = Array.prototype.slice.call(arguments).join(" ");
+          console.error(text);
+        },
+        canvas: (function () {
+          var canvas = document.getElementById("canvas");
+          var container = document.getElementById("container");
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          canvas.addEventListener(
+            "webglcontextlost",
+            function (e) {
+              alert("WebGL context lost. You will need to reload the page.");
+              e.preventDefault();
+            },
+            false
+          );
+
+          // Add fullscreen functionality on click (fullscreen the container so overlay stays visible)
+          canvas.addEventListener("click", function () {
+            if (!document.fullscreenElement) {
+              if (container.requestFullscreen) {
+                container.requestFullscreen();
+              } else if (container.webkitRequestFullscreen) {
+                container.webkitRequestFullscreen();
+              } else if (container.msRequestFullscreen) {
+                container.msRequestFullscreen();
+              }
+            }
+          });
+
+          return canvas;
+        })(),
+        setStatus: function (text) {},
+      };
+    </script>
+
+    <script>
+      // Virtual controller: send keyboard events for touch buttons
+      (function () {
+        // Simple mobile detection
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                       (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent)); // includes iPad Pro
+
+        if (isMobile) {
+          document.getElementById('touch-controls').style.display = 'block';
+          // Hide instructions on mobile for cleaner screen
+          var controlsDiv = document.getElementById('controls');
+          if (controlsDiv) controlsDiv.style.display = 'none';
+        }
+
+        function sendKey(type, key, code, keyCode) {
+          var eventInit = {
+            key: key,
+            code: code,
+            keyCode: keyCode,
+            which: keyCode,
+            bubbles: true,
+            cancelable: true
+          };
+          var e = new KeyboardEvent(type, eventInit);
+          // Some browsers treat keyCode/which as read-only, but Emscripten
+          // typically reads whichever is present.
+          Object.defineProperty(e, "keyCode", { get: function () { return keyCode; } });
+          Object.defineProperty(e, "which", { get: function () { return keyCode; } });
+          window.dispatchEvent(e);
+        }
+
+        function attachButton(el) {
+          var key = el.getAttribute("data-key");
+          var code = el.getAttribute("data-code");
+          var keyCode = parseInt(el.getAttribute("data-keycode"), 10);
+          if (!key || !code || !keyCode) return;
+
+          var active = false;
+
+          function down(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (active) return;
+            active = true;
+            sendKey("keydown", key, code, keyCode);
+          }
+
+          function up(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (!active) return;
+            active = false;
+            sendKey("keyup", key, code, keyCode);
+          }
+
+          el.addEventListener("touchstart", down, { passive: false });
+          el.addEventListener("touchend", up, { passive: false });
+          el.addEventListener("touchcancel", up, { passive: false });
+          el.addEventListener("mousedown", down);
+          window.addEventListener("mouseup", up);
+        }
+
+        if (isMobile) {
+          var buttons = document.querySelectorAll("#touch-controls .tc-btn[data-key]");
+          buttons.forEach(attachButton);
+
+          var stickWrap = document.getElementById("joystick-boundary");
+          var stickInner = document.getElementById("joystick-knob");
+          
+          if (stickWrap && stickInner) {
+            var activeId = null;
+            var maxRadius = 50; // Max movement radius
+            var dirState = { up: false, down: false, left: false, right: false };
+
+            function sendDir(up, down, left, right) {
+              function toggle(name, active, key, code, codeNum) {
+                if (dirState[name] !== active) {
+                  dirState[name] = active;
+                  sendKey(active ? "keydown" : "keyup", key, code, codeNum);
+                }
+              }
+              toggle("up", up, "ArrowUp", "ArrowUp", 38);
+              toggle("down", down, "ArrowDown", "ArrowDown", 40);
+              toggle("left", left, "ArrowLeft", "ArrowLeft", 37);
+              toggle("right", right, "ArrowRight", "ArrowRight", 39);
+            }
+
+            function handleMove(clientX, clientY) {
+              var rect = stickWrap.getBoundingClientRect();
+              var centerX = rect.left + rect.width / 2;
+              var centerY = rect.top + rect.height / 2;
+              var dx = clientX - centerX;
+              var dy = clientY - centerY;
+              var dist = Math.sqrt(dx * dx + dy * dy);
+              
+              if (dist > maxRadius) {
+                dx *= maxRadius / dist;
+                dy *= maxRadius / dist;
+                dist = maxRadius;
+              }
+
+              stickInner.style.transform = `translate(${dx}px, ${dy}px)`;
+
+              // Threshold for digital movement
+              var threshold = maxRadius * 0.3;
+              var u = dy < -threshold;
+              var d = dy > threshold;
+              var l = dx < -threshold;
+              var r = dx > threshold;
+              sendDir(u, d, l, r);
+            }
+
+            function resetStick() {
+              stickInner.style.transition = "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+              stickInner.style.transform = "translate(0, 0)";
+              sendDir(false, false, false, false);
+              activeId = null;
+            }
+
+            stickWrap.addEventListener("touchstart", function(e) {
+              e.preventDefault();
+              if (activeId !== null) return;
+              var touch = e.changedTouches[0];
+              activeId = touch.identifier;
+              stickInner.style.transition = "none";
+              handleMove(touch.clientX, touch.clientY);
+            }, {passive: false});
+
+            window.addEventListener("touchmove", function(e) {
+              if (activeId === null) return;
+              for (var i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === activeId) {
+                  handleMove(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                  break;
+                }
+              }
+            }, {passive: false});
+
+            window.addEventListener("touchend", function(e) {
+              if (activeId === null) return;
+              for (var i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === activeId) {
+                  resetStick();
+                  break;
+                }
+              }
+            });
+
+            // Mouse fallback
+            var isMouseDown = false;
+            stickWrap.addEventListener("mousedown", function(e) {
+              isMouseDown = true;
+              stickInner.style.transition = "none";
+              handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener("mousemove", function(e) {
+              if (isMouseDown) handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener("mouseup", function() {
+              if (isMouseDown) {
+                isMouseDown = false;
+                resetStick();
+              }
+            });
+          }
+        }
+      })();
+    </script>
+
+    <script async type="text/javascript" src="sm64.us.f3dex2e.js"></script>
+
+    <script>
+      // Corruptor launcher and parent-side handler
+      (function(){
+        var popup = null;
+        var btn = document.getElementById('launch-corruptor');
+        btn.addEventListener('click', function(){
+          if(popup && !popup.closed){ popup.focus(); return; }
+          popup = window.open('corruptor.html','sm64_corruptor','width=420,height=540');
+        });
+
+        // Corruption engines: memory-focused byte/memory ops (no canvas visual glitch)
+        var corruptionTimers = { engineTimer: null, engineName: null };
+
+        // Low-level helpers
+        function safeHeap() {
+          try {
+            if (window.Module && Module.HEAPU8 && Module.HEAPU8.length) return Module.HEAPU8;
+          } catch (e) {}
+          return null;
+        }
+
+        // Engine: flipRandomBytes (single-shot XOR flips)
+        function flipRandomBytes(count, intensity){
+          try {
+            var heap = safeHeap();
+            if(!heap) return {ok:false, reason:'no-module-heap'};
+            var len = heap.length;
+            count = Math.min(Math.max(1, count|0), 2000);
+            var regionSize = Math.max(1, Math.floor(len * Math.min(0.2, Math.max(0.01, intensity||0.05))));
+            var base = Math.floor(len * 0.05);
+            for(var i=0;i<count;i++){
+              var addr = base + Math.floor(Math.random() * regionSize);
+              heap[addr] = heap[addr] ^ (Math.floor(Math.random()*256));
+            }
+            return {ok:true, flipped: count};
+          } catch(err){
+            return {ok:false, reason: String(err)};
+          }
+        }
+
+        // Engine: repeatedXorRegion (periodically XOR a contiguous region with a pattern)
+        function repeatedXorRegion(regionBytes, intervalMs, patternByte) {
+          stopCorruption();
+          var heap = safeHeap();
+          if(!heap) return {ok:false, reason:'no-module-heap'};
+          var len = heap.length;
+          var regionSize = Math.min(Math.max(4, regionBytes|0), Math.floor(len * 0.25));
+          var start = Math.floor(Math.random() * Math.floor(len - regionSize));
+          corruptionTimers.engineName = 'repeatedXorRegion';
+          corruptionTimers.engineTimer = setInterval(function(){
+            try {
+              for(var i=0;i<regionSize;i++){
+                heap[start + i] = heap[start + i] ^ (patternByte & 0xff);
+              }
+            } catch(e){ /* ignore per-iteration failures */ }
+          }, Math.max(10, intervalMs|0));
+          return {ok:true, start:start, size:regionSize};
+        }
+
+        // Engine: scatterWrites (random writes across heap, configurable intensity)
+        function scatterWrites(writesPerTick, intensity) {
+          stopCorruption();
+          var heap = safeHeap();
+          if(!heap) return {ok:false, reason:'no-module-heap'};
+          var len = heap.length;
+          var cap = Math.min(5000, Math.max(1, writesPerTick|0));
+          corruptionTimers.engineName = 'scatterWrites';
+          corruptionTimers.engineTimer = setInterval(function(){
+            try {
+              for(var i=0;i<cap;i++){
+                var addr = Math.floor(Math.random() * Math.floor(len * Math.min(0.5, Math.max(0.01, intensity||0.05))));
+                addr = Math.floor(len*0.01) + addr;
+                heap[addr] = (heap[addr] + Math.floor(Math.random()*256)) & 0xFF;
+              }
+            } catch(e){}
+          }, 60);
+          return {ok:true, writes: cap};
+        }
+
+        // Engine: memoryZip (periodically copy/swizzle blocks within heap)
+        function memoryZip(blockCount, blockSize, intervalMs){
+          stopCorruption();
+          var heap = safeHeap();
+          if(!heap) return {ok:false, reason:'no-module-heap'};
+          var len = heap.length;
+          blockCount = Math.min(32, Math.max(1, blockCount|0));
+          blockSize = Math.min(4096, Math.max(4, blockSize|0));
+          corruptionTimers.engineName = 'memoryZip';
+          corruptionTimers.engineTimer = setInterval(function(){
+            try {
+              for(var b=0;b<blockCount;b++){
+                var a1 = Math.floor(Math.random() * Math.floor(len - blockSize));
+                var a2 = Math.floor(Math.random() * Math.floor(len - blockSize));
+                // do a small copy (use temporary array to avoid overlapping issues)
+                var tmp = heap.slice(a1, a1 + blockSize);
+                for(var k=0;k<tmp.length;k++){
+                  heap[a2 + k] = tmp[k];
+                }
+              }
+            } catch(e){}
+          }, Math.max(40, intervalMs|0));
+          return {ok:true, blocks:blockCount, size:blockSize};
+        }
+
+        // Stop any running corruption engine
+        function stopCorruption(){
+          if(corruptionTimers.engineTimer) {
+            clearInterval(corruptionTimers.engineTimer);
+            corruptionTimers.engineTimer = null;
+            corruptionTimers.engineName = null;
+          }
+        }
+
+        // Handle messages from corruptor window: select engine and parameters
+        window.addEventListener('message', function(ev){
+          if(!ev.data || typeof ev.data !== 'object') return;
+          var cmd = ev.data.cmd;
+          if(cmd === 'start-glitch' || cmd === 'start-engine'){
+            // interpret as engine selection + params
+            var engine = ev.data.engine || 'flip';
+            var intensity = Number(ev.data.intensity) || 0.05;
+            var speed = Number(ev.data.speed) || 120;
+            var flips = Number(ev.data.count) || 12;
+
+            // map engine names to functions
+            if(engine === 'visual') {
+              // visual-only removed; fallback to safe flip
+              var res = flipRandomBytes(flips, intensity);
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'flip', result:res}, '*');
+            } else if(engine === 'flip') {
+              var res = flipRandomBytes(flips, intensity);
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'flip', result:res}, '*');
+            } else if(engine === 'scatter') {
+              var writes = Math.max(1, Math.floor(flips));
+              var res = scatterWrites(writes, intensity);
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'scatter', result:res}, '*');
+            } else if(engine === 'xor-region') {
+              var region = Math.max(8, Math.floor((ev.data.regionSize||512)));
+              var pattern = Math.floor(((ev.data.patternByte|0) + 256) % 256) || 0xA5;
+              var res = repeatedXorRegion(region, Math.max(10, Math.floor(600 - speed)), pattern);
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'xor-region', result:res}, '*');
+            } else if(engine === 'memory-zip' || engine === 'zip') {
+              var blocks = Math.max(1, Math.floor(ev.data.blocks||6));
+              var bsize = Math.max(16, Math.floor(ev.data.blockSize||256));
+              var res = memoryZip(blocks, bsize, Math.max(40, Math.floor(600 - speed)));
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'memory-zip', result:res}, '*');
+            } else if(engine === 'combo') {
+              // combine a repeating engine + flips
+              scatterWrites(Math.max(1, Math.floor(flips/2)), intensity);
+              // schedule some flips every N ms
+              if(corruptionTimers.comboFlip) clearInterval(corruptionTimers.comboFlip);
+              corruptionTimers.comboFlip = setInterval(function(){
+                flipRandomBytes(Math.max(1, Math.floor(flips*0.25)), intensity);
+              }, Math.max(150, 800 - speed));
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'combo'}, '*');
+            } else {
+              // unknown engine - do a safe single flip
+              var res = flipRandomBytes(flips, intensity);
+              if(popup && !popup.closed) popup.postMessage({cmd:'engine-started', engine:'flip', result:res}, '*');
+            }
+          } else if(cmd === 'stop-glitch' || cmd === 'stop-engine'){
+            stopCorruption();
+            if(corruptionTimers.comboFlip){ clearInterval(corruptionTimers.comboFlip); corruptionTimers.comboFlip = null; }
+            if(popup && !popup.closed) popup.postMessage({cmd:'engine-stopped'}, '*');
+          } else if(cmd === 'flip-bytes'){
+            var res = flipRandomBytes(ev.data.count||8, ev.data.intensity||0.05);
+            if(popup && !popup.closed) popup.postMessage({cmd:'flip-result', result: res}, '*');
+          } else if(cmd === 'one-shot-glitch'){
+            // 'one-shot' mapped to a safe single flip operation
+            var res = flipRandomBytes(ev.data.count || Math.max(1, Math.floor((ev.data.intensity||0.05)*50)), ev.data.intensity||0.05);
+            if(popup && !popup.closed) popup.postMessage({cmd:'flip-result', result: res}, '*');
+          }
+        }, false);
+      })();
+    </script>
+
+    <script>
+      // Save/Load states for the emulator (heap snapshot to localStorage)
+      (function(){
+        function safeHeapArray() {
+          try {
+            if (window.Module && Module.HEAPU8 && Module.HEAPU8.length) return Module.HEAPU8;
+          } catch(e){}
+          return null;
+        }
+
+        // IndexedDB-backed state storage to avoid localStorage quota limits
+        var IDB_DB = 'sm64_states_db';
+        var IDB_STORE = 'states';
+
+        function openDb(){
+          return new Promise(function(resolve, reject){
+            var req = indexedDB.open(IDB_DB, 1);
+            req.onupgradeneeded = function(ev){
+              var db = ev.target.result;
+              if(!db.objectStoreNames.contains(IDB_STORE)){
+                db.createObjectStore(IDB_STORE);
+              }
+            };
+            req.onsuccess = function(){ resolve(req.result); };
+            req.onerror = function(){ reject(req.error || new Error('IDB open failed')); };
+          });
+        }
+
+        function idbPut(key, value){
+          return openDb().then(function(db){
+            return new Promise(function(resolve, reject){
+              var tx = db.transaction([IDB_STORE], 'readwrite');
+              var store = tx.objectStore(IDB_STORE);
+              var r = store.put(value, key);
+              r.onsuccess = function(){ resolve(); };
+              r.onerror = function(){ reject(r.error); };
+            });
+          });
+        }
+
+        function idbGet(key){
+          return openDb().then(function(db){
+            return new Promise(function(resolve, reject){
+              var tx = db.transaction([IDB_STORE], 'readonly');
+              var store = tx.objectStore(IDB_STORE);
+              var r = store.get(key);
+              r.onsuccess = function(){ resolve(r.result); };
+              r.onerror = function(){ reject(r.error); };
+            });
+          });
+        }
+
+        function idbDelete(key){
+          return openDb().then(function(db){
+            return new Promise(function(resolve, reject){
+              var tx = db.transaction([IDB_STORE], 'readwrite');
+              var store = tx.objectStore(IDB_STORE);
+              var r = store.delete(key);
+              r.onsuccess = function(){ resolve(); };
+              r.onerror = function(){ reject(r.error); };
+            });
+          });
+        }
+
+        function idbListKeys(){
+          return openDb().then(function(db){
+            return new Promise(function(resolve, reject){
+              var tx = db.transaction([IDB_STORE], 'readonly');
+              var store = tx.objectStore(IDB_STORE);
+              var out = [];
+              var req = store.openKeyCursor();
+              req.onsuccess = function(e){
+                var cursor = e.target.result;
+                if(cursor){
+                  out.push(cursor.key);
+                  cursor.continue();
+                } else resolve(out);
+              };
+              req.onerror = function(){ reject(req.error); };
+            });
+          });
+        }
+
+        function promptName(defaultName){
+          var name = prompt('Save state name:', defaultName || ('state_' + Date.now()));
+          if(!name) return null;
+          return 'sm64_state:' + name.replace(/\s+/g,'_');
+        }
+
+        function saveStatePrompt(){
+          var heap = safeHeapArray();
+          if(!heap){ alert('No emulator heap detected yet.'); return; }
+          var key = promptName('quick');
+          if(!key) return;
+          try {
+            // make a copy of the heap as an ArrayBuffer (fast and avoids base64 blowup)
+            var copy = new Uint8Array(heap.length);
+            copy.set(heap);
+            var buffer = copy.buffer.slice(0); // detach copy
+            // store meta + binary in IDB
+            var payload = { ts: Date.now(), size: copy.length, data: buffer };
+            idbPut(key, payload).then(function(){
+              alert('State saved: ' + key.replace('sm64_state:',''));
+            }).catch(function(err){
+              console.error('idb put failed', err);
+              alert('Save failed: ' + err);
+            });
+          } catch (e) {
+            console.error('saveState failed', e);
+            alert('Save failed: ' + e);
+          }
+        }
+
+        function loadStatePrompt(){
+          idbListKeys().then(function(keys){
+            if(!keys || keys.length === 0){ alert('No saved states found.'); return; }
+            var names = keys.map(k => k.replace('sm64_state:',''));
+            var sel = prompt('Available states:\n' + names.join('\n') + '\n\nEnter name to load:');
+            if(!sel) return;
+            var key = 'sm64_state:' + sel.replace(/\s+/g,'_');
+            idbGet(key).then(function(item){
+              if(!item || !item.data){ alert('State not found: ' + sel); return; }
+              var heap = safeHeapArray();
+              if(!heap){ alert('No emulator heap detected.'); return; }
+              try {
+                var src = new Uint8Array(item.data);
+                var writeLen = Math.min(heap.length, src.length);
+                heap.set(src.subarray(0, writeLen), 0);
+                alert('State loaded: ' + sel);
+              } catch(e){
+                console.error('loadState failed', e);
+                alert('Load failed: ' + e);
+              }
+            }).catch(function(err){
+              console.error('idb get failed', err);
+              alert('Load failed: ' + err);
+            });
+          }).catch(function(err){
+            console.error('idb list failed', err);
+            alert('Could not list states: ' + err);
+          });
+        }
+
+        function exportStatePrompt(){
+          idbListKeys().then(function(keys){
+            if(!keys || keys.length === 0){ alert('No saved states to export.'); return; }
+            var sel = prompt('Enter state name to export:\n' + keys.map(k=>k.replace('sm64_state:','')).join('\n'));
+            if(!sel) return;
+            var key = 'sm64_state:' + sel.replace(/\s+/g,'_');
+            idbGet(key).then(function(item){
+              if(!item){ alert('Not found'); return; }
+              // prepare a JSON wrapper but encode binary as base64 for portability
+              var arr = new Uint8Array(item.data);
+              var CH = 0x8000;
+              var parts = [];
+              for(var i=0;i<arr.length;i+=CH){
+                var slice = arr.subarray(i, Math.min(i+CH, arr.length));
+                parts.push(String.fromCharCode.apply(null, slice));
+              }
+              var b64 = btoa(parts.join(''));
+              var out = { ts: item.ts, size: item.size, data: b64 };
+              var blob = new Blob([JSON.stringify(out)], {type:'application/json'});
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement('a');
+              a.href = url; a.download = (sel.replace(/[^a-z0-9\-_]/gi,'_') || 'state') + '.json';
+              document.body.appendChild(a); a.click(); a.remove();
+              setTimeout(()=>URL.revokeObjectURL(url), 3000);
+            }).catch(function(err){
+              console.error('export failed', err);
+              alert('Export failed: ' + err);
+            });
+          }).catch(function(err){
+            console.error('export list failed', err);
+            alert('Could not list states: ' + err);
+          });
+        }
+
+        function deleteStatePrompt(){
+          idbListKeys().then(function(keys){
+            if(!keys || keys.length === 0){ alert('No saved states.'); return; }
+            var sel = prompt('Enter state name to delete:\n' + keys.map(k=>k.replace('sm64_state:','')).join('\n'));
+            if(!sel) return;
+            var key = 'sm64_state:' + sel.replace(/\s+/g,'_');
+            idbGet(key).then(function(item){
+              if(!item){ alert('Not found'); return; }
+              if(confirm('Delete state "'+sel+'"?')){
+                idbDelete(key).then(function(){
+                  alert('Deleted');
+                }).catch(function(err){
+                  console.error('delete failed', err);
+                  alert('Delete failed: ' + err);
+                });
+              }
+            }).catch(function(err){
+              console.error('idb get before delete failed', err);
+              alert('Delete failed: ' + err);
+            });
+          }).catch(function(err){
+            console.error('delete list failed', err);
+            alert('Could not list states: ' + err);
+          });
+        }
+
+        // wire UI buttons
+        try {
+          var sBtn = document.getElementById('save-state');
+          var lBtn = document.getElementById('load-state');
+          if(sBtn) sBtn.addEventListener('click', saveStatePrompt);
+          if(lBtn) lBtn.addEventListener('click', loadStatePrompt);
+          // expose helpers for advanced use
+          window.sm64States = {save: saveStatePrompt, load: loadStatePrompt, export: exportStatePrompt, delete: deleteStatePrompt, list: listStateKeys};
+        } catch(e){
+          console.warn('state UI wiring failed', e);
+        }
+      })();
+
+      // Auto-reboot on crash: listen for global errors, unhandled rejections, and Emscripten aborts.
+      (function(){
+        var rebooting = false;
+        function scheduleReboot(reason){
+          if(rebooting) return;
+          rebooting = true;
+          try { console.error('[AutoReboot] detected crash:', reason); } catch(e){}
+          // notify corruptor popup if open
+          try { if(window.popup && !window.popup.closed) window.popup.postMessage({cmd:'host-crashed', reason: String(reason)}, '*'); } catch(e){}
+          // give a short delay to allow logs/popups, then reload to reboot the game
+          setTimeout(function(){
+            try { location.reload(true); } catch(e){ location.href = location.href; }
+          }, 1400);
+        }
+
+        // Global JS errors
+        window.addEventListener('error', function(ev){
+          // ignore font/image load errors (they have no error object)
+          var r = ev && ev.error ? ev.error : ev.message || ev.filename || 'unknown';
+          scheduleReboot('error: ' + String(r));
+        }, false);
+
+        // Unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(ev){
+          var r = ev && ev.reason ? ev.reason : 'unhandledrejection';
+          scheduleReboot('unhandledrejection: ' + String(r));
+        }, false);
+
+        // Emscripten abort hook (if Module is available)
+        try {
+          if(window.Module){
+            var prevAbort = Module.onAbort;
+            Module.onAbort = function(info){
+              try { console.error('[Module.onAbort]', info); } catch(e){}
+              scheduleReboot('emscripten-abort: ' + String(info));
+              if(typeof prevAbort === 'function') try { prevAbort(info); } catch(e){}
+            };
+            // also watch for explicit exported abort in some builds
+            Module._onabort = Module._onabort || function(info){
+              scheduleReboot('emscripten-_onabort: ' + String(info));
+            };
+          }
+        } catch(e){
+          // ignore any errors while installing hooks
+        }
+
+        // defensive periodic liveness check: if the wasm heap becomes inaccessible, reboot
+        var lastHeapLen = null;
+        setInterval(function(){
+          try {
+            var heap = (window.Module && Module.HEAPU8) ? Module.HEAPU8 : null;
+            if(heap){
+              if(lastHeapLen === null) lastHeapLen = heap.length;
+              else if(heap.length !== lastHeapLen && Math.abs(heap.length - lastHeapLen) > 10000000){
+                // large unexpected change -> reboot
+                scheduleReboot('heap-size-jump');
+              } else {
+                lastHeapLen = heap.length;
+              }
+            }
+          } catch(e){
+            scheduleReboot('heap-access-failure:' + String(e));
+          }
+        }, 2000);
+      })();
+    </script>
+  </body>
+</html>
