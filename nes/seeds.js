@@ -1,7 +1,7 @@
 import { els } from './dom.js';
 import { loadROMFromURL, originalROMName, getCurrentROMName } from './emulator.js';
 import { corruptAndReload } from './ui.js';
-import { WebsimSocket } from '@websim/websim-socket';
+import WebsimSocket from '@websim/websim-socket';
 
 const room = new WebsimSocket();
 let allSeeds = [];
