@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NES/GB Corruptor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>NES/GB Corruptor</h1>
+    <button id="menuBtn" class="menu-btn" hidden>Menu</button>
+    <div class="controls">
+      <input id="romInput" type="file" accept=".nes,.rom,.gb,.gbc,application/octet-stream" />
+      <button id="openRomBtn">Open ROM</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="resetBtn" disabled>Reset</button>
+      <button id="fullscreenBtn">Fullscreen</button>
+      <button id="muteBtn" aria-pressed="false">Mute</button>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
+      <button id="controlsBtn">Controls</button>
+      <button id="creditsBtn">Credits</button>
+      <button id="toggleTouchBtn" aria-pressed="false">Show On-Screen Controls</button>
+      <select id="gbPaletteSelect" aria-label="GB Display">
+        <option value="mono" selected>GB Display: Monochrome</option>
+        <option value="green">GB Display: Green</option>
+        <option value="gbc">GB Display: GB Color</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <p class="credits-top">Original project by <a href="https://websim.com/@homelessman/breakthatmario" target="_blank" rel="noopener">@homelessman</a>, it also includes SNES games so please check it out!</p>
+    <section id="screenWrap" class="screen-wrap" tabindex="0" aria-label="NES Screen (focus to use keyboard)">
+      <canvas id="screen" width="256" height="240"></canvas>
+      <div id="dropHint" class="drop-hint">Drop a .nes or .gb file here</div>
+    </section>
+    <!-- On-screen controls -->
+    <div id="touchControls" class="touch-controls" hidden>
+      <div class="tc-left">
+        <button class="tc-btn tc-up" data-btn="UP" aria-label="Up">▲</button>
+        <div class="tc-mid">
+          <button class="tc-btn tc-left" data-btn="LEFT" aria-label="Left">◀</button>
+          <button class="tc-btn tc-right" data-btn="RIGHT" aria-label="Right">▶</button>
+        </div>
+        <button class="tc-btn tc-down" data-btn="DOWN" aria-label="Down">▼</button>
+      </div>
+      <div class="tc-right">
+        <button class="tc-btn tc-b" data-btn="B" aria-label="B">B</button>
+        <button class="tc-btn tc-a" data-btn="A" aria-label="A">A</button>
+      </div>
+      <div class="tc-center">
+        <button class="tc-small" data-btn="SELECT" aria-label="Select">Select</button>
+        <button class="tc-small" data-btn="START" aria-label="Start">Start</button>
+      </div>
+    </div>
+    <p class="status">
+      <span id="statusText">No ROM loaded</span>
+      <span id="fpsText" class="muted"></span>
+    </p>
+    <div class="seed-controls">
+      <select id="gameSelect" aria-label="Game">
+        <option value="/Super Mario Bros. (Japan, USA).nes" selected>Super Mario Bros. (Japan, USA)</option>
+        <option value="/Legend of Zelda, The (USA) (Rev 1).nes">The Legend of Zelda (USA) (Rev 1)</option>
+        <option value="/Metroid (USA).nes">Metroid (USA)</option>
+        <option value="/Donkey Kong (World) (Rev 1).nes">Donkey Kong (World) (Rev 1)</option>
+        <option value="/Super Mario Bros. 2 (USA) (Rev 1).nes">Super Mario Bros. 2 (USA) (Rev 1)</option>
+        <option value="/Super Mario Bros. 3 (USA) (Rev 1).nes">Super Mario Bros. 3 (USA) (Rev 1)</option>
+        <option value="/Tetris (USA).nes">Tetris (USA)</option>
+        <option value="/Mega Man 2 (USA).nes">Mega Man 2 (USA)</option>
+        <option value="/Super Mario Land (World) (Rev 1).gb">Super Mario Land (World) (Rev 1)</option>
+      </select>
+      <input id="seedInput" type="text" placeholder="Seed (optional)" />
+      <input id="byteCountInput" type="number" min="1" max="65536" value="25" title="Number of bytes to corrupt" />
+      <select id="modeSelect" aria-label="Corruption mode">
+        <option value="rom" selected>ROM</option>
+        <option value="ram">RAM</option>
+      </select>
+      <button id="seedSubmitBtn">Corrupt & Reload</button>
+      <button id="seedRandomBtn">Random Corrupt</button>
+    </div>
+    <div class="share-row">
+      <input id="seedTitleInput" type="text" placeholder="Title for your seed" />
+      <button id="postSeedBtn">Post Seed</button>
+    </div>
+    <section class="featured" id="featuredSection">
+      <h2>Featured Corruptions <button id="featuredToggleBtn" aria-expanded="true" style="margin-left:8px;">Hide</button></h2>
+      <div class="seed-list" id="featuredList"></div>
+    </section>
+    <section class="share">
+      <div class="share-controls">
+        <input id="seedSearchInput" type="text" placeholder="Search seeds (title, seed, mode, rom, user)" />
+        <div class="pagination">
+          <button id="prevPageBtn">Prev</button>
+          <span id="pageInfo" class="muted"></span>
+          <button id="nextPageBtn">Next</button>
+        </div>
+      </div>
+      <div class="seed-list" id="seedList"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
+  <script src="https://unpkg.com/wasmboy@0.7.1/dist/wasmboy.ts.iife.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "@websim/websim-socket": "https://esm.websim.com/@websim/websim-socket",
+        "./dom.js": "./dom.js",
+        "./audio.js": "./audio.js",
+        "./emulator.js": "./emulator.js",
+        "./corruption.js": "./corruption.js",
+        "./seeds.js": "./seeds.js",
+        "./ui.js": "./ui.js"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+  <dialog id="controlsDialog">
+    <h2>Controls</h2>
+    <ul>
+      <li>D-Pad: Arrow Keys or WASD</li>
+      <li>A: X or K</li>
+      <li>B: Z or J</li>
+      <li>Start: Enter</li>
+      <li>Select: Right Shift</li>
+      <li>Pause/Resume: P</li>
+      <li>Reset: R</li>
+    </ul>
+    <button data-close-dialog>Close</button>
+  </dialog>
+  <dialog id="creditsDialog">
+    <p>Original project by <a href="https://websim.com/@homelessman/breakthatmario" target="_blank" rel="noopener">homelessman</a>, it also includes SNES games so please check it out! Improvements by BookwormKevin.</p>
+    <button data-close-dialog>Close</button>
+  </dialog>
+  <dialog id="menuDialog">
+    <h2>Menu</h2>
+    <div id="menuControlsSlot"></div>
+    <button data-close-dialog>Close</button>
+  </dialog>
+</body>
+</html>
