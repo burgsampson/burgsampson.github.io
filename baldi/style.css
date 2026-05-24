@@ -1,0 +1,42 @@
+:root{
+  --bg: #0f0f10;
+  --muted: rgba(255,255,255,0.7);
+  --accent: #e94b35;
+}
+
+html,body{
+  height:100%;
+  margin:0;
+  background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color:var(--muted);
+  overflow:hidden;
+}
+
+#app{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+}
+
+/* iframe fills the screen (mobile-first, single-screen) */
+#gameFrame{
+  border:0;
+  width:100%;
+  height:100%;
+  display:block;
+  background:#000;
+  touch-action: none; /* improve pointer handling for web games on touch devices */
+}
+
+/* hide the cursor when pointer lock is active */
+#gameFrame.locked {
+  cursor: none;
+}
+
+/* small floating controls - touch friendly */
+/* controls removed */
