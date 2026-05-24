@@ -1,20 +1,43 @@
 import { els } from './dom.js';
 import { loadROMFromURL, originalROMName, getCurrentROMName } from './emulator.js';
 import { corruptAndReload } from './ui.js';
-import WebsimSocket from '@websim/websim-socket';
 
-const room = new WebsimSocket();
 let allSeeds = [];
 let currentPage = 1;
 let features = [];
 let isBK = false;
-let seedsV1 = [], seedsV2 = [];
-let featuresV1 = [], featuresV2 = [];
+
+const STORAGE_KEYS = {
+  SEEDS: 'nes_seeds',
+  FEATURES: 'nes_features'
+};
 
 function clean(str, max = 120) {
   str = (str || '').trim();
   if (str.length > max) str = str.slice(0, max);
   return str.replace(/[\x00-\x1F\x7F]/g, ''); // only remove control chars, preserve case
+}
+
+function loadSeeds() {
+  const stored = localStorage.getItem(STORAGE_KEYS.SEEDS);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveSeeds(seeds) {
+  localStorage.setItem(STORAGE_KEYS.SEEDS, JSON.stringify(seeds));
+}
+
+function loadFeatures() {
+  const stored = localStorage.getItem(STORAGE_KEYS.FEATURES);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveFeatures(features) {
+  localStorage.setItem(STORAGE_KEYS.FEATURES, JSON.stringify(features));
+}
+
+function generateId() {
+  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 async function postSeed() {
@@ -28,16 +51,27 @@ async function postSeed() {
     return;
   }
   try {
-    await room.collection('seed_v2').create({ title, seed, mode, rom, byteCount });
+    const seeds = loadSeeds();
+    seeds.push({
+      id: generateId(),
+      title,
+      seed,
+      mode,
+      rom,
+      byteCount,
+      username: 'You',
+      created_at: new Date().toISOString()
+    });
+    saveSeeds(seeds);
     els.seedTitleInput.value = '';
     els.statusText.textContent = 'Seed posted';
+    mergeAndRender();
   } catch (e) {
     console.error(e);
     els.statusText.textContent = 'Failed to post seed';
   }
 }
 
-/* Add a normalizer so v1 and v2 render uniformly */
 function normalizeSeed(s) {
   return {
     id: s.id,
@@ -46,16 +80,15 @@ function normalizeSeed(s) {
     mode: (s.mode || 'rom'),
     rom: s.rom || s.game || 'Super Mario Bros. (Japan, USA)',
     byteCount: s.byteCount || s.bytes || 25,
-    username: s.username,
+    username: s.username || 'Anonymous',
     created_at: s.created_at
   };
 }
 
-/* Merge V1 + V2 then render */
 function mergeAndRender() {
-  const merged = [...seedsV1, ...seedsV2].map(normalizeSeed)
+  const seeds = loadSeeds().map(normalizeSeed)
     .sort((a,b) => (new Date(b.created_at||0)) - (new Date(a.created_at||0)));
-  renderSeeds(merged);
+  renderSeeds(seeds);
   renderFeatured();
 }
 
@@ -119,7 +152,8 @@ function renderSeeds(seeds) {
 
     actions.append(useBtn);
     if (isBK) {
-      const f2 = featuresV2.find(f => f.seed_id === s.id);
+      const currentFeatures = loadFeatures();
+      const f2 = currentFeatures.find(f => f.seed_id === s.id);
       const fb = document.createElement('button'); fb.textContent = f2 ? 'Unfeature' : 'Feature';
       fb.addEventListener('click', () => toggleFeature(s.id, !!f2, f2?.id));
       actions.append(fb);
@@ -136,7 +170,7 @@ function renderSeeds(seeds) {
 function renderFeatured() {
   const list = els.featuredList; if (!list) return;
   list.textContent = '';
-  const combinedFeatures = [...featuresV1, ...featuresV2];
+  const combinedFeatures = loadFeatures();
   const featuredSeeds = combinedFeatures.map(f => allSeeds.find(s => s.id === f.seed_id)).filter(Boolean);
   featuredSeeds.forEach(s => {
     const item = document.createElement('div'); item.className = 'seed-item';
@@ -175,11 +209,23 @@ function renderFeatured() {
   });
 }
 
-async function toggleFeature(seedId, isFeatured, featureId) {
+function toggleFeature(seedId, isFeatured, featureId) {
   try {
-    if (isFeatured && featureId) await room.collection('feature_v2').delete(featureId);
-    else await room.collection('feature_v2').create({ seed_id: seedId });
-  } catch (e) { console.error(e); }
+    let features = loadFeatures();
+    if (isFeatured && featureId) {
+      features = features.filter(f => f.id !== featureId);
+    } else {
+      features.push({
+        id: generateId(),
+        seed_id: seedId,
+        created_at: new Date().toISOString()
+      });
+    }
+    saveFeatures(features);
+    renderFeatured();
+  } catch (e) { 
+    console.error(e); 
+  }
 }
 
 export function setupSeeds() {
@@ -187,15 +233,12 @@ export function setupSeeds() {
   els.seedSearchInput?.addEventListener('input', () => { currentPage = 1; renderSeeds(allSeeds); });
   els.prevPageBtn?.addEventListener('click', () => { currentPage = Math.max(1, currentPage - 1); renderSeeds(allSeeds); });
   els.nextPageBtn?.addEventListener('click', () => { currentPage++; renderSeeds(allSeeds); });
-  // Subscribe to both v1 and v2, then merge
-  room.collection('seed_v1').subscribe((seeds) => { seedsV1 = seeds.slice(); mergeAndRender(); });
-  room.collection('seed_v2').subscribe((seeds) => { seedsV2 = seeds.slice(); mergeAndRender(); });
+  
+  // Initial render
+  mergeAndRender();
 
-  (async () => {
-    const me = await window.websim.getCurrentUser(); isBK = (me?.username === 'BookwormKevin');
-    room.collection('feature_v1').subscribe((fs) => { featuresV1 = fs.slice(); renderFeatured(); });
-    room.collection('feature_v2').subscribe((fs) => { featuresV2 = fs.slice(); renderFeatured(); });
-  })();
+  // Set isBK flag (you could modify this logic if needed for local-only)
+  isBK = localStorage.getItem('isAdmin') === 'true';
 
   // Featured collapse/expand
   const applyFeaturedState = (collapsed) => {
